@@ -1,0 +1,80 @@
+body, html {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+}
+
+#container {
+    display: flex;
+    height: 100vh;
+}
+
+#leftDiv {
+    width: 40%;
+    background-color: #f4f4f4;
+    padding: 20px;
+    border-right: 1px solid #ccc;
+    overflow-y: auto;
+}
+
+#rightDiv {
+    width: 60%;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+button {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 10px 20px;
+    background-color: #cccccc;
+    color: rgb(0, 0, 0);
+    border: none;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #adadad;
+}
+
+form {
+    margin-top: 10px;
+}
+
+input[type="text"], input[type="file"] {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+    padding: 10px;
+    border: 1px solid #ccc;
+}
+
+input[type="text"]:focus, input[type="file"]:focus {
+    border-color: #b9b9b9;
+}
+
+#allMessage {
+    margin-top: 20px;
+}
+
+#allMessage li {
+    margin-bottom: 5px;
+}
+
+#groupList li {
+    background-color: #fff;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+#groupList li:hover {
+    background-color: #e0e0e0;
+}
+
+#groupList li.active {
+    background-color: #c5c5c5;
+    color: rgb(3, 3, 3);
+}

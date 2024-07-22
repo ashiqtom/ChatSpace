@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChatWindow</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="container">
+        <div id="leftDiv">
+            <p><a href="../login/login.html">login</a> 
+                <a href="../signup/signup.html">signup</a> 
+                <button id="logout">logout</button>
+            </p>
+            <h2>Caht App</h2>
+            <h3 id="adminNmae"></h3>
+
+            <div>
+                <label for="createGroup">Create group</label>
+                <input type="text" id="createGroup" name="createGroup">
+                <button id="createGroupBtn">Create</button>
+            </div>
+    
+            <h3>Group list</h3>
+                <ul id="groupList"></ul>  
+        </div>
+          
+        <div id="rightDiv" style="display: none;">
+            <h3 id="messageHeading">Messages</h3>
+        
+            <button id="showLoggedUsers">Logged Users</button>
+            <ul id="loggedUsersList"></ul>
+    
+            <button id="addMembers">Add Members</button>
+            <div id="addMembersList"></div><br>
+            
+            <button id="groupMembers">groupMembers</button>
+            <div id="groupMemberslist"></div>
+    
+            <div id="messageInput">
+                <label for="message">type here</label>
+                <input type="text" id="message" name="message" placeholder="enter the message here">
+                <button id="sendMessage">Send Message</button><br><br>
+                
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <input type="file" id="myFile" name="myFile">
+                    <button type="submit">Upload File</button>
+                </form>
+            </div>
+    
+            <ul id="allMessage"></ul>
+        </div>
+    </div>
+    
+    
+</body>
+<script src="/socket.io/socket.io.js"></script>
+<script src="chatWindow.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.7.2/axios.min.js"></script>
+</html>
