@@ -1,11 +1,10 @@
-const Sequelize=require('sequelize');
-const sequelize = require('../util/database');
-const Group = require('./group');
+const mongoose = require('mongoose');
 
-const UserGroup = sequelize.define('UserGroup', {
-    isAdmin: {
-        type: Sequelize.BOOLEAN,
-        defaultValue: false
-    }
+const userGroupSchema = new mongoose.Schema({
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    group: { type: mongoose.Schema.Types.ObjectId, ref: 'Group', required: true },
+    isAdmin: { type: Boolean, default: false }
 });
+
+const UserGroup = mongoose.model('UserGroup', userGroupSchema);
 module.exports = UserGroup;

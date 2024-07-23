@@ -2,9 +2,9 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors'); 
 const path = require('path');
+const mongoose=require('mongoose');
 require('dotenv').config();
 const app = express();
-
 
 //socket.io
 const http = require('http');
@@ -51,37 +51,11 @@ const job = new CronJob(
 job.start();
 
 
-
-
 app.use(bodyParser.json());
 app.use(cors({
   origin: "*",
   methods: ['GET', 'POST'] 
 }));
-
-
-// Import sequelize and models
-const sequelize = require('./util/database');
-const User = require('./models/user');
-const Chat = require('./models/chat');
-const Group = require('./models/group');
-const UserGroup = require('./models/UserGroup');
-const ArchivedChat = require('./models/archivedChat');
-
-// Define model relationships
-User.hasMany(Chat,{ onDelete: 'CASCADE' }); 
-Chat.belongsTo(User);
-User.hasMany(ArchivedChat, { onDelete: 'CASCADE' });
-ArchivedChat.belongsTo(User);
-
-Group.hasMany(Chat,{ onDelete: 'CASCADE' });
-Chat.belongsTo(Group);
-Group.hasMany(ArchivedChat, { onDelete: 'CASCADE' });
-ArchivedChat.belongsTo(Group);
-
-User.belongsToMany(Group, { through: UserGroup, onDelete: 'CASCADE' });
-Group.belongsToMany(User, { through: UserGroup, onDelete: 'CASCADE' });
-
 
 const adminRoutes = require('./routes/user');
 const chatRoutes = require('./routes/chat');
@@ -91,18 +65,24 @@ app.use('/user', adminRoutes);
 app.use('/chat', chatRoutes);
 app.use('/group', groupRoutes);
 
-app.use((req, res) => {
-  res.sendFile(path.join(__dirname, `public/${req.url}`));
-});
+
+app.use(express.static(path.join(__dirname, 'public')));
 
 
-sequelize
-  .sync({force:true})
-  .then(() => {
-    server.listen(process.env.PORT || 3000, () => {
-      console.log(`Server is running on port ${process.env.PORT}`);
+
+const startServer = async () => {
+  try {
+    await mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true });
+    console.log('Connected to MongoDB');
+
+    const port = process.env.PORT || 3000;
+
+    server.listen(port, () => {
+      console.log(`Server is running on port ${port}`);
     });
-  })
-  .catch((error) => {
-    console.log(error);
-  });
+  } catch (err) {
+    console.error('Connection error', err);
+  }
+};
+
+startServer();

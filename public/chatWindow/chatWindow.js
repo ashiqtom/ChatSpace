@@ -38,32 +38,32 @@ document.getElementById('sendMessage').addEventListener('click', async () => {
 });
 
 
-document.getElementById('uploadForm').addEventListener('submit', async function(event) {
-    event.preventDefault();
+// document.getElementById('uploadForm').addEventListener('submit', async function(event) {
+//     event.preventDefault();
 
-    const fileInput = document.getElementById('myFile');
-    const file = fileInput.files[0];
+//     const fileInput = document.getElementById('myFile');
+//     const file = fileInput.files[0];
 
-    if (!file) {
-        return alert('Please select a file to upload');
-    }
+//     if (!file) {
+//         return alert('Please select a file to upload');
+//     }
 
-    const formData = new FormData();
-    formData.append('myFile', file);
-    formData.append('groupId', appState.currentGroupId);
+//     const formData = new FormData();
+//     formData.append('myFile', file);
+//     formData.append('groupId', appState.currentGroupId);
 
-    const token = appState.token;
+//     const token = appState.token;
 
-    try {
-        await axios.post(`/chat/uploadFile`,formData,{headers:{"authorization":token}});
-        fileInput.value = '';
-        getMessage();
+//     try {
+//         await axios.post(`/chat/uploadFile`,formData,{headers:{"authorization":token}});
+//         fileInput.value = '';
+//         getMessage();
 
-    } catch (error) {
-        console.error('error:', error);
-        alert('Failed to upload file')
-    }
-});
+//     } catch (error) {
+//         console.error('error:', error);
+//         alert('Failed to upload file')
+//     }
+// });
 
 
 const getMessage = async () =>{
@@ -79,12 +79,12 @@ const getMessage = async () =>{
         const newMessages = getMessages.data;
 
         const updatedMessages = storedMessages.concat(newMessages.filter(item2 => {
-            return !storedMessages.some(item1 => item1.id === item2.id);
+            return !storedMessages.some(item1 => item1._id === item2._id);
         }));
-
         localStorage.setItem('messages', JSON.stringify(updatedMessages));
 
         const filteredChat = updatedMessages.filter(message => message.groupId === groupId);
+        
         messageDivFunction(filteredChat);
     } catch (error) {
         console.log(error);
@@ -119,8 +119,12 @@ const messageDivFunction = (messages) => {
 document.getElementById('addMembers').addEventListener('click',async () => {
     try {
         const users = await axios.get(`/group/userList/${appState.currentGroupId}`);
+        console.log(users)
        
-        const userList = document.getElementById('addMembersList');
+        if(users.data=='no members'){
+            alert('No members')
+        } else{
+            const userList = document.getElementById('addMembersList');
         userList.innerHTML = '';
         users.data.forEach(user => {
             if (user.username !== appState.adminName) {
@@ -146,6 +150,7 @@ document.getElementById('addMembers').addEventListener('click',async () => {
                 userList.appendChild(li);
             }
         });
+        }
     } catch (error) {
         console.log(error);
         alert("failed")
@@ -178,12 +183,12 @@ document.getElementById('groupMembers').addEventListener('click', async () => {
         groupList.innerHTML = '';
         groups.data.forEach(group => { 
             const listItem = document.createElement('li');
-            if(group.username===appState.adminName && group.Admin){
+            if(group.username===appState.adminName && group.isAdmin){
                 listItem.innerHTML = `${group.username} - You - Admin`;
 
             } else if (group.username===appState.adminName){
                 listItem.innerHTML = `${group.username} - You`;
-            } else if (group.Admin){
+            } else if (group.isAdmin){
                 listItem.innerHTML = `${group.username}- Admin`;
             } else {
                 listItem.innerHTML = `${group.username}`;
@@ -196,6 +201,7 @@ document.getElementById('groupMembers').addEventListener('click', async () => {
                             groupName: appState.currentGroupName,
                             username: group.username
                         }, { headers: { 'authorization': token } });
+                        alert(promoteToAdmin.data.message)
                         getMessage();
                     } catch (error) {
                         console.log(error.response.data.message);
@@ -308,13 +314,12 @@ const groupList = async () => {
                 document.getElementById('addMembersList').innerHTML='';
                 document.getElementById('groupMemberslist').innerHTML='';
 
-                appState.currentGroupId = group.id;
+                appState.currentGroupId = group._id;
                 appState.currentGroupName = group.groupName;
                 
                 //conect to room
-                socket.emit('joinGroup', group.id);
-
-                getMessage(group.id);
+                socket.emit('joinGroup', group._id);
+                getMessage();
             });
             groupListElement.appendChild(listItem);
         });

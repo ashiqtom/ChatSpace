@@ -1,152 +1,141 @@
-const Group = require("../models/group");
-const User = require("../models/user");
-const UserGroup=require('../models/UserGroup')
-const sequelize = require('../util/database');
-const { Op } = require('sequelize');
-
-exports.createGroup=async(req,res)=>{
-    const transaction = await sequelize.transaction();
+const UserGroup = require('../models/UserGroup');
+const Group = require('../models/group');
+const User= require('../models/user');
+const mongoose = require('mongoose');
+// Create Group
+exports.createGroup = async (req, res) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
     try {
-        const {groupName}=req.body;    
+        const { groupName } = req.body;
 
-        const group = await Group.create({
-            groupName: groupName
-        }, { transaction});
+        const group = new Group({ groupName });
+        await group.save({ session });
 
-        let requestingUser = await User.findByPk(req.user.id);
-        
-        await group.addUser(requestingUser, { through: { isAdmin: true }, transaction});
+        const user = await User.findById(req.user.id).session(session);
+        const userGroup = new UserGroup({ user: user._id, group: group._id, isAdmin: true });
+        await userGroup.save({ session });
 
-        await transaction.commit();
+        await session.commitTransaction();
         res.status(200).json({ message: 'Group created successfully' });
-
-    }catch(error){
-        await transaction.rollback();
-        console.log(error);
+    } catch (error) {
+        await session.abortTransaction();
+        console.error(error);
         res.status(500).json({ message: 'An error occurred' });
+    } finally {
+        session.endSession();
     }
-}
+};
 
-exports.deleteGroup=async (req,res)=>{
-    try{
-        const userId=req.user.id;
-        const groupId=req.body.groupId;
+// Delete Group
+exports.deleteGroup = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const groupId = req.body.groupId;
 
-        const userGroup=await UserGroup.findOne({
-            where:{
-                UserId:userId,
-                groupId:groupId,
-                isAdmin:true
-            }
+        const userGroup = await UserGroup.findOne({
+            user: userId,
+            group: groupId,
+            isAdmin: true
         });
-        if(!userGroup){
-            return res.status(403).json({message:'you are not admin'});
+
+        if (!userGroup) {
+            return res.status(403).json({ message: 'You are not admin' });
         }
-        
-        const group = await Group.findByPk(groupId);
+
+        const group = await Group.findById(groupId);
         if (!group) {
             return res.status(404).json({ message: 'Group not found.' });
         }
 
-        // Delete the group (cascading deletions will occur for associated records)
-        await group.destroy();
-
+        await group.deleteOne();
         res.status(200).json({ message: 'Group deleted successfully.' });
-    } catch (error){
-        console.log(error);
+    } catch (error) {
+        console.error(error);
         res.status(500).json({ error: 'Failed to delete group' });
     }
-}
+};
 
+// Get Users
 exports.getUsers = async (req, res) => {
     try {
-        const groupId = req.params.groupId;
-
-        const userGroups = await UserGroup.findAll({
-            attributes: ['UserId'],
-            where: { GroupId: groupId }
-        });
+        const { groupId } = req.params;
         
-        const userIdsInGroup = userGroups.map(ug => ug.UserId);
-
-        const users = await User.findAll({
-            attributes: ['username'],
-            where: {
-                id: {
-                    [Op.notIn]: userIdsInGroup
-                }
-            }
-        });
-
-        res.status(200).json(users);
+        // Get user IDs of users who are in the group
+        const userGroups = await UserGroup.find({ group: groupId }).select('user');
+        const userIdsInGroup = userGroups.map(ug => ug.user);
+        // Get users who are not in the group
+        const usersNotInGroup = await User.find({ _id: { $nin: userIdsInGroup } }).select('username'); 
+        if(usersNotInGroup.length==0){
+            res.status(200).json('no members');
+        } else {
+            res.status(200).json(usersNotInGroup);
+        }
     } catch (error) {
-        console.log(error);
+        console.error(error);
         res.status(500).json({ error: 'Failed to get users' });
     }
 };
 
-
-
+// Remove User
 exports.removeUser = async (req, res) => {
     try {
         const { groupName, username } = req.body;
 
-        const group = await Group.findOne({ where: { groupName: groupName } });
+        const group = await Group.findOne({ groupName });
         if (!group) {
             return res.status(404).json({ message: 'Group not found' });
         }
 
-        const reqUserGroup = await UserGroup.findOne({ where: { UserId: req.user.id, GroupId: group.id } });
+        const reqUserGroup = await UserGroup.findOne({ user: req.user.id, group: group._id });
         if (!reqUserGroup || !reqUserGroup.isAdmin) {
             return res.status(403).json({ message: 'You are not an admin of this group' });
         }
 
-        const user = await User.findOne({ where: { username: username } });
+        const user = await User.findOne({ username });
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        const userGroup = await UserGroup.findOne({ where: { UserId: user.id, GroupId: group.id } });
+        const userGroup = await UserGroup.findOne({ user: user._id, group: group._id });
         if (userGroup) {
-            await userGroup.destroy(); 
-            return res.status(200).json({ message: 'User removed from group successfully'});
+            await userGroup.deleteOne();
+            res.status(200).json({ message: 'User removed from group successfully' });
         } else {
-            return res.status(404).json({ message: 'User is not a member of the group' });
+            res.status(404).json({ message: 'User is not a member of the group' });
         }
     } catch (error) {
         console.error(error);
-        return res.status(500).json({ message: 'An error occurred while removing user from group' });
+        res.status(500).json({ message: 'An error occurred while removing user from group' });
     }
 };
 
+// Promote to Admin
 exports.promoteToAdmin = async (req, res) => {
     try {
         const { groupName, username } = req.body;
-        console.log(req.body)
 
-        const group = await Group.findOne({ where: { groupName: groupName } });
+        const group = await Group.findOne({ groupName });
         if (!group) {
             return res.status(404).json({ message: 'Group not found' });
         }
 
-         const reqUserGroup = await UserGroup.findOne({ where: { UserId: req.user.id, GroupId: group.id } });
-         if (!reqUserGroup || !reqUserGroup.isAdmin) {
-             return res.status(403).json({ message: 'You are not an admin of this group' });
-         }
-
-        const user = await User.findOne({ where: { username: username } });
+        const reqUserGroup = await UserGroup.findOne({ user: req.user.id, group: group._id });
+        if (!reqUserGroup || !reqUserGroup.isAdmin) {
+            return res.status(403).json({ message: 'You are not an admin of this group' });
+        }
+        const user = await User.findOne({ username });
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
 
-
-        const userGroup = await UserGroup.findOne({ where: { UserId: user.id, GroupId: group.id } });
+        const userGroup = await UserGroup.findOne({ user: user._id, group: group._id });
         if (userGroup) {
-            userGroup.isAdmin = true;  // Set the user as admin
-            await userGroup.save();    // Save the changes
-            return res.status(200).json({ message: 'User promoted to admin successfully' });
+            userGroup.isAdmin = true;
+            await userGroup.save();
+            res.status(200).json({ message: 'User promoted to admin successfully' });
         } else {
-            return res.status(404).json({ message: 'User is not a member of the group' });
+            res.status(404).json({ message: 'User is not a member of the group' });
         }
     } catch (error) {
         console.error(error);
@@ -154,50 +143,57 @@ exports.promoteToAdmin = async (req, res) => {
     }
 };
 
+// Remove Member
 exports.removeMember = async (req, res) => {
     try {
         const { groupName, username } = req.body;
 
-        const group = await Group.findOne({ where: { groupName: groupName } });
+        const group = await Group.findOne({ groupName });
         if (!group) {
             return res.status(404).json({ message: 'Group not found' });
         }
 
-        const user = await User.findOne({ where: { username: username } });
+        const user = await User.findOne({ username });
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        const isAdmin = await group.isAdmin(req.user);
-        if (!isAdmin) {
+        const reqUserGroup = await UserGroup.findOne({ user: req.user.id, group: group._id });
+        if (!reqUserGroup || !reqUserGroup.isAdmin) {
             return res.status(403).json({ message: 'You are not an admin of this group' });
         }
 
-        // Remove the user from the group
-        await group.removeUser(user);
-        res.status(200).json({ message: 'User removed from group successfully' });
+        const userGroup = await UserGroup.findOne({ user: user._id, group: group._id });
+        if (userGroup) {
+            await userGroup.deleteOne();
+            res.status(200).json({ message: 'User removed from group successfully' });
+        } else {
+            res.status(404).json({ message: 'User is not a member of the group' });
+        }
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'An error occurred while removing the user from the group' });
     }
 };
 
-
+// Add Member
 exports.addMember = async (req, res) => {
     try {
         const { groupName, username } = req.body;
 
-        const group = await Group.findOne({ where: { groupName: groupName } });
+        const group = await Group.findOne({ groupName });
         if (!group) {
             return res.status(404).json({ message: 'Group not found' });
         }
 
-        const user = await User.findOne({ where: { username: username } });
+        const user = await User.findOne({ username });
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        await group.addUser(user);
+        const userGroup = new UserGroup({ user: user._id, group: group._id });
+        await userGroup.save();
+
         res.status(200).json({ message: 'User added to group successfully' });
     } catch (error) {
         console.error(error);
@@ -205,59 +201,41 @@ exports.addMember = async (req, res) => {
     }
 };
 
-
+// Get Group
 exports.getGroup = async (req, res) => {
     try {
         const userId = req.user.id;
 
-        const user = await User.findByPk(userId, {
-            include: {
-                model: Group,
-                attributes: ['groupName','id'], // Only fetch the groupName attribute
-                through: {
-                    attributes: [] // Exclude the join table attributes
-                }
-            }
-        });
+        const userGroups = await UserGroup.find({ user: userId }).populate('group', 'groupName id');
+        const groups = userGroups.map(ug => ug.group).filter(group => group !== null);
 
-        res.status(200).json(user.groups);
+        res.status(200).json(groups);
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'An error occurred while fetching groups' });
     }
 };
 
+// Get Group Members
 exports.getGroupMembers = async (req, res) => {
     try {
         const { groupName } = req.params;
         const userId = req.user.id;
 
-        const group = await Group.findOne({
-            where: { groupName },
-            
-        });
-
+        const group = await Group.findOne({ groupName });
         if (!group) {
             return res.status(404).json({ message: 'Group not found' });
         }
 
-        const isMember = await group.hasUser(userId);
+        const isMember = await UserGroup.findOne({ user: userId, group: group._id });
         if (!isMember) {
             return res.status(403).json({ message: 'You are not a member of this group' });
         }
 
-        // Fetch all users in the group along with their admin status
-        const members = await group.getUsers({
-            attributes: ['username'],
-            through: {
-                attributes: ['isAdmin']
-            }
-        });
-
-        // Format response
+        const members = await UserGroup.find({ group: group._id }).populate('user', 'username');
         const usernames = members.map(member => ({
-            username: member.username,
-            Admin: member.UserGroup.isAdmin // Assuming the join table alias is UserGroup
+            username: member.user.username,
+            isAdmin: member.isAdmin
         }));
 
         res.status(200).json(usernames);
@@ -266,5 +244,3 @@ exports.getGroupMembers = async (req, res) => {
         res.status(500).json({ message: 'An error occurred while fetching group members' });
     }
 };
-
-
